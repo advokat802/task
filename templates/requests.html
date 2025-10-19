@@ -1,0 +1,1017 @@
+{% extends "base.html" %}
+
+{% block title %}Заявки - Task Manager{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="bi bi-clipboard-check"></i>
+            {% if request_type == 'remote' %}Удаленные заявки
+            {% elif request_type == 'on_site' %}Выездные заявки
+            {% else %}Все заявки{% endif %}
+        </h2>
+        
+        {% if user.role == 'manager' %}
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createRequestModal">
+            <i class="bi bi-plus-circle"></i> Создать заявку
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- Фильтры -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <!-- Фильтр по типу заявки -->
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Тип заявки:</label>
+                    <div class="btn-group w-100" role="group">
+                        <a href="{{ url_for('requests_page', assigned=assigned_filter, organization=organization_filter, show_completed=show_completed) }}" 
+                           class="btn btn-{{ 'primary' if request_type == 'all' else 'outline-primary' }}">
+                            Все
+                        </a>
+                        <a href="{{ url_for('requests_page', type='remote', assigned=assigned_filter, organization=organization_filter, show_completed=show_completed) }}" 
+                           class="btn btn-{{ 'info' if request_type == 'remote' else 'outline-info' }}">
+                            <i class="bi bi-laptop"></i> Удаленные
+                        </a>
+                        <a href="{{ url_for('requests_page', type='on_site', assigned=assigned_filter, organization=organization_filter, show_completed=show_completed) }}" 
+                           class="btn btn-{{ 'warning' if request_type == 'on_site' else 'outline-warning' }}">
+                            <i class="bi bi-geo-alt"></i> Выездные
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Фильтр по назначению -->
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Назначение:</label>
+                    <div class="btn-group w-100" role="group">
+                        <a href="{{ url_for('requests_page', type=request_type, organization=organization_filter, show_completed=show_completed) }}" 
+                           class="btn btn-{{ 'primary' if assigned_filter == 'all' else 'outline-primary' }}">
+                            Все
+                        </a>
+                        <a href="{{ url_for('requests_page', type=request_type, assigned='assigned', organization=organization_filter, show_completed=show_completed) }}" 
+                           class="btn btn-{{ 'success' if assigned_filter == 'assigned' else 'outline-success' }}">
+                            Назначенные
+                        </a>
+                        <a href="{{ url_for('requests_page', type=request_type, assigned='unassigned', organization=organization_filter, show_completed=show_completed) }}" 
+                           class="btn btn-{{ 'secondary' if assigned_filter == 'unassigned' else 'outline-secondary' }}">
+                            Неназначенные
+                        </a>
+                        <a href="{{ url_for('requests_page', type=request_type, assigned='my', organization=organization_filter, show_completed=show_completed) }}" 
+                           class="btn btn-{{ 'info' if assigned_filter == 'my' else 'outline-info' }}">
+                            Мои
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Фильтр по организации -->
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Организация:</label>
+                    <select class="form-select" onchange="window.location.href=this.value">
+                        <option value="{{ url_for('requests_page', type=request_type, assigned=assigned_filter, show_completed=show_completed) }}"
+                                {% if organization_filter == 'all' %}selected{% endif %}>
+                            Все организации
+                        </option>
+                        {% for org in organizations %}
+                        <option value="{{ url_for('requests_page', type=request_type, assigned=assigned_filter, organization=org, show_completed=show_completed) }}"
+                                {% if organization_filter == org %}selected{% endif %}>
+                            {{ org }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Фильтр выполненных заявок -->
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Выполненные:</label>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="showCompletedToggle" 
+                               {% if show_completed %}checked{% endif %}
+                               onchange="toggleCompleted()">
+                        <label class="form-check-label" for="showCompletedToggle">
+                            {% if show_completed %}
+                            <span class="text-success">Показаны</span>
+                            {% else %}
+                            <span class="text-muted">Скрыты</span>
+                            {% endif %}
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Информация о фильтрах -->
+    <div class="alert alert-info mb-4">
+        <i class="bi bi-info-circle"></i>
+        <strong>Информация:</strong> 
+        {% if not show_completed %}
+        <span class="fw-bold">Выполненные заявки скрыты.</span> 
+        {% endif %}
+        Все сотрудники видят заявки друг друга. Используйте фильтры для удобной навигации.
+        
+        <!-- Счетчики -->
+        <div class="mt-2">
+            <small>
+                Всего заявок: <strong>{{ requests|length }}</strong>
+                {% if not show_completed %}
+                | Активных: <strong class="text-success">{{ requests|selectattr('status', 'ne', 'completed')|list|length }}</strong>
+                | Выполненных: <strong class="text-muted">{{ requests|selectattr('status', 'equalto', 'completed')|list|length }}</strong>
+                {% endif %}
+            </small>
+        </div>
+    </div>
+
+    <!-- Таблица заявок -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Список заявок</h5>
+            <div class="text-muted">
+                <small>Показано: <strong>{{ requests|length }}</strong> заявок</small>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if requests %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Дедлайн</th>
+                            <th>Название</th>
+                            <th>Организация</th>
+                            <th>Тип</th>
+                            <th>Клиент</th>
+                            <th>Телефон</th>
+                            <th>Назначен</th>
+                            <th>Статус</th>
+                            <th>Приоритет</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in requests %}
+                        <tr class="{% if req.status == 'completed' %}table-success{% endif %}">
+                            <td>
+                                {% if req.deadline %}
+                                    {% set deadline_str = req.deadline %}
+                                    {% set now_str = now().strftime('%Y-%m-%d %H:%M:%S') %}
+                                    <span class="{% if deadline_str < now_str and req.status != 'completed' %}text-danger fw-bold{% endif %}">
+                                        {{ req.deadline }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">Не указан</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="#" class="request-title-link" data-bs-toggle="modal" data-bs-target="#requestDetailsModal" 
+                                   data-request-id="{{ req.id }}"
+                                   data-request-title="{{ req.title }}"
+                                   data-request-description="{{ req.description }}"
+                                   data-request-type="{{ req.request_type }}"
+                                   data-request-priority="{{ req.priority }}"
+                                   data-request-status="{{ req.status }}"
+                                   data-client-name="{{ req.client_name }}"
+                                   data-client-phone="{{ req.client_phone }}"
+                                   data-client-organization="{{ req.client_organization }}"
+                                   data-client-address="{{ req.client_address }}"
+                                   data-assigned-username="{{ req.assigned_username }}"
+                                   data-assigned-role="{{ req.assigned_role }}"
+                                   data-assigned-to="{{ req.assigned_to }}"
+                                   data-assigned-by-username="{{ req.created_by_username }}"
+                                   data-deadline="{{ req.deadline }}"
+                                   data-created-at="{{ req.created_at }}">
+                                    <strong>{{ req.title }}</strong>
+                                </a>
+                                {% if req.description %}
+                                <br><small class="text-muted">{{ req.description[:50] }}...</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-dark border">
+                                    {{ req.client_organization }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ 'info' if req.request_type == 'remote' else 'warning' }}">
+                                    {{ 'Удаленная' if req.request_type == 'remote' else 'Выездная' }}
+                                </span>
+                            </td>
+                            <td>{{ req.client_name }}</td>
+                            <td>{{ req.client_phone }}</td>
+                            <td>
+                                {% if req.assigned_username %}
+                                    <div class="d-flex align-items-center">
+                                        <span>{{ req.assigned_username }}</span>
+                                        {% if req.assigned_role == 'manager' %}
+                                        <span class="badge bg-info ms-1" title="Менеджер">М</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary ms-1" title="Сотрудник">С</span>
+                                        {% endif %}
+                                        {% if req.assigned_to == user.id %}
+                                        <span class="badge bg-success ms-1">Вы</span>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <span class="badge bg-secondary">Неназначенная</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ 'success' if req.status == 'completed' else 'warning' if req.status == 'in_progress' else 'secondary' }}">
+                                    {% if req.status == 'pending' %}Ожидает
+                                    {% elif req.status == 'in_progress' %}В работе
+                                    {% elif req.status == 'completed' %}Завершена
+                                    {% else %}{{ req.status }}{% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ 'danger' if req.priority == 'high' else 'warning' if req.priority == 'medium' else 'info' }}">
+                                    {% if req.priority == 'high' %}Высокий
+                                    {% elif req.priority == 'medium' %}Средний
+                                    {% elif req.priority == 'low' %}Низкий
+                                    {% else %}{{ req.priority }}{% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="btn-group-vertical btn-group-sm">
+                                    {% if not req.assigned_username %}
+                                        {% if user.role == 'employee' %}
+                                        <form method="POST" action="{{ url_for('take_request_route', request_id=req.id) }}" class="mb-1">
+                                            <button type="submit" class="btn btn-success btn-sm w-100" title="Взять заявку">
+                                                <i class="bi bi-hand-index-thumb"></i> Взять
+                                            </button>
+                                        </form>
+                                        {% elif user.role == 'manager' %}
+                                        <form method="POST" action="{{ url_for('assign_request_route', request_id=req.id) }}" class="mb-1">
+                                            <select name="assigned_to" class="form-select form-select-sm" onchange="this.form.submit()">
+                                                <option value="">Назначить...</option>
+                                                {% for emp in employees %}
+                                                <option value="{{ emp.id }}">
+                                                    {{ emp.username }} 
+                                                    {% if emp.role == 'manager' %}(Менеджер){% else %}(Сотрудник){% endif %}
+                                                </option>
+                                                {% endfor %}
+                                            </select>
+                                        </form>
+                                        {% endif %}
+                                    {% endif %}
+                                    
+                                    <!-- ОБНОВЛЕНИЕ СТАТУСА -->
+                                    {% if req.assigned_to == user.id or user.role == 'manager' or req.created_by == user.id %}
+                                    <form method="POST" action="{{ url_for('update_request_status_route', request_id=req.id) }}">
+                                        <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                                            <option value="pending" {{ 'selected' if req.status == 'pending' }}>Ожидает</option>
+                                            <option value="in_progress" {{ 'selected' if req.status == 'in_progress' }}>В работе</option>
+                                            <option value="completed" {{ 'selected' if req.status == 'completed' }}>Завершена</option>
+                                        </select>
+                                        <!-- Скрытая кнопка для гарантии отправки формы -->
+                                        <button type="submit" style="display: none;"></button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-inbox fs-1"></i>
+                <p class="mt-2">Заявки не найдены</p>
+                {% if user.role == 'manager' %}
+                <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#createRequestModal">
+                    <i class="bi bi-plus-circle"></i> Создать первую заявку
+                </button>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно деталей заявки -->
+<div class="modal fade" id="requestDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-clipboard-data"></i> Детали заявки
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="requestDetailsForm" method="POST" action="#">
+                <div class="modal-body">
+                    <input type="hidden" id="detail-request-id" name="request_id">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Название заявки</label>
+                                {% if user.role == 'manager' %}
+                                <input type="text" id="detail-title-input" name="title" class="form-control" required>
+                                {% else %}
+                                <p id="detail-title" class="form-control-plaintext"></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Тип заявки</label>
+                                {% if user.role == 'manager' %}
+                                <select id="detail-type-select" name="request_type" class="form-select" required>
+                                    <option value="remote">Удаленная</option>
+                                    <option value="on_site">Выездная</option>
+                                </select>
+                                {% else %}
+                                <p id="detail-type" class="form-control-plaintext"></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Описание</label>
+                        {% if user.role == 'manager' %}
+                        <textarea id="detail-description-input" name="description" class="form-control" rows="3"></textarea>
+                        {% else %}
+                        <p id="detail-description" class="form-control-plaintext"></p>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Статус</label>
+                                {% if user.role == 'manager' %}
+                                <select id="detail-status-select" name="status" class="form-select">
+                                    <option value="pending">Ожидает</option>
+                                    <option value="in_progress">В работе</option>
+                                    <option value="completed">Завершена</option>
+                                </select>
+                                {% else %}
+                                <p id="detail-status" class="form-control-plaintext"></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Приоритет</label>
+                                {% if user.role == 'manager' %}
+                                <select id="detail-priority-select" name="priority" class="form-select">
+                                    <option value="low">Низкий</option>
+                                    <option value="medium">Средний</option>
+                                    <option value="high">Высокий</option>
+                                </select>
+                                {% else %}
+                                <p id="detail-priority" class="form-control-plaintext"></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Дедлайн</label>
+                                {% if user.role == 'manager' %}
+                                <input type="datetime-local" id="detail-deadline-input" name="deadline" class="form-control">
+                                {% else %}
+                                <p id="detail-deadline" class="form-control-plaintext"></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Назначенный пользователь</label>
+                                {% if user.role == 'manager' %}
+                                <select id="detail-assigned-select" name="assigned_to" class="form-select">
+                                    <option value="0">-- Неназначенная --</option>
+                                    {% for emp in employees %}
+                                    <option value="{{ emp.id }}">
+                                        {{ emp.username }} 
+                                        {% if emp.role == 'manager' %}(Менеджер){% else %}(Сотрудник){% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                {% else %}
+                                <p id="detail-assigned" class="form-control-plaintext"></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Создана</label>
+                                <p id="detail-created" class="form-control-plaintext"></p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Кто создал</label>
+                                <p id="detail-created-by" class="form-control-plaintext"></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    <h6 class="fw-bold">Информация о клиенте</h6>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Имя клиента *</label>
+                                {% if user.role == 'manager' %}
+                                <input type="text" id="detail-client-name-input" name="client_name" class="form-control" required>
+                                {% else %}
+                                <p id="detail-client-name" class="form-control-plaintext"></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Телефон *</label>
+                                {% if user.role == 'manager' %}
+                                <input type="text" id="detail-client-phone-input" name="client_phone" class="form-control" required>
+                                {% else %}
+                                <p id="detail-client-phone" class="form-control-plaintext"></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Организация *</label>
+                                {% if user.role == 'manager' %}
+                                <select id="detail-client-organization-select" name="client_organization" class="form-select" required>
+                                    <option value="">-- Выберите организацию --</option>
+                                    <!-- Организации будут загружены через AJAX -->
+                                </select>
+                                <input type="text" id="detail-client-organization-input" name="client_organization_custom" class="form-control mt-2" placeholder="Или введите новую организацию" style="display: none;">
+                                <div class="form-text">
+                                    <small>Выберите из списка или введите новую</small>
+                                </div>
+                                {% else %}
+                                <p id="detail-client-organization" class="form-control-plaintext"></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Адрес</label>
+                                {% if user.role == 'manager' %}
+                                <input type="text" id="detail-client-address-input" name="client_address" class="form-control">
+                                {% else %}
+                                <p id="detail-client-address" class="form-control-plaintext"></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                    {% if user.role == 'manager' %}
+                    <button type="submit" class="btn btn-primary" id="saveChangesBtn">
+                        <i class="bi bi-check-circle"></i> Сохранить изменения
+                    </button>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно создания заявки -->
+{% if user.role == 'manager' %}
+<div class="modal fade" id="createRequestModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-plus-circle"></i> Создать новую заявку
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('create_request_route') }}">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Тип заявки *</label>
+                                <select name="request_type" class="form-select" required>
+                                    <option value="remote">Удаленная</option>
+                                    <option value="on_site">Выездная</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Приоритет</label>
+                                <select name="priority" class="form-select" required>
+                                    <option value="low">Низкий</option>
+                                    <option value="medium" selected>Средний</option>
+                                    <option value="high">Высокий</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Название заявки *</label>
+                        <input type="text" name="title" class="form-control" placeholder="Краткое описание проблемы" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Описание</label>
+                        <textarea name="description" class="form-control" rows="3" placeholder="Подробное описание работы..."></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Назначить пользователю</label>
+                                <select name="assigned_to" class="form-select">
+                                    <option value="0">-- Неназначенная (доступна всем) --</option>
+                                    {% for emp in employees %}
+                                    <option value="{{ emp.id }}">
+                                        {{ emp.username }} 
+                                        {% if emp.role == 'manager' %}(Менеджер){% else %}(Сотрудник){% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Дедлайн</label>
+                                <input type="datetime-local" name="deadline" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Имя клиента *</label>
+                                <input type="text" name="client_name" class="form-control" placeholder="ФИО клиента" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Телефон *</label>
+                                <input type="tel" name="client_phone" class="form-control" placeholder="+7 XXX XXX-XX-XX" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Организация *</label>
+                                <select name="client_organization" class="form-select" id="organizationSelect" required>
+                                    <option value="">-- Выберите организацию --</option>
+                                    <!-- Организации будут загружены через AJAX -->
+                                </select>
+                                <input type="text" name="client_organization_custom" class="form-control mt-2" placeholder="Или введите новую организацию" id="customOrganizationInput" style="display: none;">
+                                <div class="form-text">
+                                    <small>Выберите из списка или введите новую</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label class="form-label">Адрес</label>
+                                <input type="text" name="client_address" class="form-control" placeholder="Адрес для выезда">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Создать заявку</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+.btn-group .btn {
+    border-radius: 0.375rem;
+    margin: 0 2px;
+}
+.btn-group .btn:first-child {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+.btn-group .btn:last-child {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+.btn-group .btn:not(:first-child):not(:last-child) {
+    border-radius: 0;
+}
+.table th {
+    background-color: #2c3e50;
+    color: white;
+}
+.badge {
+    font-size: 0.75em;
+}
+.request-title-link {
+    color: #2c3e50;
+    text-decoration: none;
+    cursor: pointer;
+}
+.request-title-link:hover {
+    color: #3498db;
+    text-decoration: underline;
+}
+.form-control-plaintext {
+    min-height: 24px;
+    padding: 6px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+.btn-loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.7;
+}
+.btn-loading::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    top: 50%;
+    left: 50%;
+    margin-left: -8px;
+    margin-top: -8px;
+    border: 2px solid transparent;
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: button-loading-spinner 1s ease infinite;
+}
+@keyframes button-loading-spinner {
+    from { transform: rotate(0turn); }
+    to { transform: rotate(1turn); }
+}
+.table-success {
+    background-color: rgba(25, 135, 84, 0.05) !important;
+}
+</style>
+
+<script>
+function toggleCompleted() {
+    const showCompleted = document.getElementById('showCompletedToggle').checked;
+    const url = new URL(window.location.href);
+    url.searchParams.set('show_completed', showCompleted);
+    window.location.href = url.toString();
+}
+
+// Загрузка организаций при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    // Загружаем организации для выпадающих списков
+    loadOrganizations();
+
+    // Переключение между выпадающим списком и текстовым полем
+    const organizationSelect = document.getElementById('organizationSelect');
+    const customOrganizationInput = document.getElementById('customOrganizationInput');
+    
+    if (organizationSelect && customOrganizationInput) {
+        organizationSelect.addEventListener('change', function() {
+            if (this.value === '') {
+                customOrganizationInput.style.display = 'block';
+                customOrganizationInput.required = true;
+            } else {
+                customOrganizationInput.style.display = 'none';
+                customOrganizationInput.required = false;
+                customOrganizationInput.value = '';
+            }
+        });
+    }
+
+    // Автоматическое закрытие алертов через 5 секунд
+    setTimeout(function() {
+        const alerts = document.querySelectorAll('.alert');
+        alerts.forEach(function(alert) {
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        });
+    }, 5000);
+
+    // Подсветка строк с неназначенными заявками
+    const rows = document.querySelectorAll('tbody tr');
+    rows.forEach(function(row) {
+        const assignedCell = row.cells[6];
+        if (assignedCell.querySelector('.badge.bg-secondary')) {
+            row.style.backgroundColor = 'rgba(248, 249, 250, 0.8)';
+        }
+        
+        // Подсветка "моих" заявок
+        if (assignedCell.querySelector('.badge.bg-success')) {
+            row.style.borderLeft = '4px solid #28a745';
+        }
+        
+        // Подсветка просроченных дедлайнов
+        const deadlineCell = row.cells[0];
+        if (deadlineCell.querySelector('.text-danger')) {
+            row.style.borderLeft = '4px solid #dc3545';
+        }
+    });
+
+    // Обработка кликов по названиям заявок
+    const requestLinks = document.querySelectorAll('.request-title-link');
+    requestLinks.forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Получаем данные из data-атрибутов
+            const requestId = this.getAttribute('data-request-id');
+            const title = this.getAttribute('data-request-title');
+            const description = this.getAttribute('data-request-description') || 'Не указано';
+            const requestType = this.getAttribute('data-request-type');
+            const priority = this.getAttribute('data-request-priority');
+            const status = this.getAttribute('data-request-status');
+            const clientName = this.getAttribute('data-client-name');
+            const clientPhone = this.getAttribute('data-client-phone');
+            const clientOrganization = this.getAttribute('data-client-organization') || 'Не указано';
+            const clientAddress = this.getAttribute('data-client-address') || 'Не указан';
+            const assignedUsername = this.getAttribute('data-assigned-username') || 'Не назначен';
+            const assignedRole = this.getAttribute('data-assigned-role');
+            const assignedTo = this.getAttribute('data-assigned-to');
+            const assignedByUsername = this.getAttribute('data-assigned-by-username');
+            const deadline = this.getAttribute('data-deadline');
+            const createdAt = this.getAttribute('data-created-at');
+
+            // Заполняем модальное окно данными
+            document.getElementById('detail-request-id').value = requestId;
+            
+            {% if user.role == 'manager' %}
+            // Для менеджеров - редактируемые поля
+            document.getElementById('detail-title-input').value = title;
+            document.getElementById('detail-description-input').value = description;
+            document.getElementById('detail-type-select').value = requestType;
+            document.getElementById('detail-priority-select').value = priority;
+            document.getElementById('detail-status-select').value = status;
+            
+            if (deadline) {
+                const deadlineDate = new Date(deadline);
+                const formattedDeadline = deadlineDate.toISOString().slice(0, 16);
+                document.getElementById('detail-deadline-input').value = formattedDeadline;
+            } else {
+                document.getElementById('detail-deadline-input').value = '';
+            }
+            
+            if (assignedTo && assignedTo !== 'None') {
+                document.getElementById('detail-assigned-select').value = assignedTo;
+            } else {
+                document.getElementById('detail-assigned-select').value = '0';
+            }
+            
+            document.getElementById('detail-client-name-input').value = clientName;
+            document.getElementById('detail-client-phone-input').value = clientPhone;
+            
+            // Загружаем организации для выпадающего списка в модальном окне
+            loadOrganizationsForModal().then(() => {
+                // Устанавливаем выбранную организацию
+                const orgSelect = document.getElementById('detail-client-organization-select');
+                if (orgSelect) {
+                    orgSelect.value = clientOrganization;
+                    
+                    // Если организации нет в списке, показываем текстовое поле
+                    if (!orgSelect.value && clientOrganization) {
+                        document.getElementById('detail-client-organization-input').style.display = 'block';
+                        document.getElementById('detail-client-organization-input').value = clientOrganization;
+                    }
+                }
+            });
+            
+            document.getElementById('detail-client-address-input').value = clientAddress || '';
+            {% else %}
+            // Для сотрудников - только просмотр
+            document.getElementById('detail-title').textContent = title;
+            document.getElementById('detail-description').textContent = description;
+            
+            const typeBadge = requestType === 'remote' ? 
+                '<span class="badge bg-info">Удаленная</span>' : 
+                '<span class="badge bg-warning">Выездная</span>';
+            document.getElementById('detail-type').innerHTML = typeBadge;
+            
+            let statusBadge = '';
+            if (status === 'pending') statusBadge = '<span class="badge bg-secondary">Ожидает</span>';
+            else if (status === 'in_progress') statusBadge = '<span class="badge bg-warning">В работе</span>';
+            else if (status === 'completed') statusBadge = '<span class="badge bg-success">Завершена</span>';
+            else statusBadge = `<span class="badge bg-secondary">${status}</span>`;
+            document.getElementById('detail-status').innerHTML = statusBadge;
+            
+            let priorityBadge = '';
+            if (priority === 'high') priorityBadge = '<span class="badge bg-danger">Высокий</span>';
+            else if (priority === 'medium') priorityBadge = '<span class="badge bg-warning">Средний</span>';
+            else if (priority === 'low') priorityBadge = '<span class="badge bg-info">Низкий</span>';
+            else priorityBadge = `<span class="badge bg-secondary">${priority}</span>`;
+            document.getElementById('detail-priority').innerHTML = priorityBadge;
+            
+            document.getElementById('detail-deadline').textContent = deadline || 'Не указан';
+            
+            // Отображаем назначенного пользователя с ролью
+            let assignedText = assignedUsername;
+            if (assignedRole === 'manager') {
+                assignedText += ' <span class="badge bg-info ms-1" title="Менеджер">М</span>';
+            } else if (assignedRole === 'employee') {
+                assignedText += ' <span class="badge bg-secondary ms-1" title="Сотрудник">С</span>';
+            }
+            document.getElementById('detail-assigned').innerHTML = assignedText;
+            
+            document.getElementById('detail-client-name').textContent = clientName;
+            document.getElementById('detail-client-phone').textContent = clientPhone;
+            document.getElementById('detail-client-organization').textContent = clientOrganization;
+            document.getElementById('detail-client-address').textContent = clientAddress || 'Не указан';
+            {% endif %}
+            
+            // Общее поле (создана)
+            document.getElementById('detail-created').textContent = createdAt ? new Date(createdAt).toLocaleString('ru-RU') : 'Неизвестно';
+
+            // Поле "Кто создал"
+            document.getElementById('detail-created-by').textContent = assignedByUsername || 'Неизвестно';
+        });
+    });
+
+    // Обработка формы сохранения изменений
+    const requestDetailsForm = document.getElementById('requestDetailsForm');
+    if (requestDetailsForm) {
+        requestDetailsForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const requestId = formData.get('request_id');
+            const submitBtn = this.querySelector('#saveChangesBtn');
+            const originalText = submitBtn.innerHTML;
+            
+            // Показываем индикатор загрузки
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Сохранение...';
+            submitBtn.classList.add('btn-loading');
+            submitBtn.disabled = true;
+            
+            try {
+                const response = await fetch(`/edit_request_full/${requestId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                // Проверяем Content-Type ответа
+                const contentType = response.headers.get('content-type');
+                
+                if (!contentType || !contentType.includes('application/json')) {
+                    // Если ответ не JSON, получаем текст для отладки
+                    const textResponse = await response.text();
+                    
+                    // Проверяем, не это ли страница логина
+                    if (textResponse.includes('login') || textResponse.includes('войти')) {
+                        throw new Error('Требуется повторная авторизация. Пожалуйста, обновите страницу.');
+                    } else if (response.status === 500) {
+                        throw new Error('Внутренняя ошибка сервера');
+                    } else {
+                        throw new Error(`Неожиданный ответ от сервера: ${response.status}`);
+                    }
+                }
+                
+                // Если ответ JSON, парсим его
+                const data = await response.json();
+                
+                if (data.success) {
+                    // УСПЕХ: закрываем модальное окно и показываем сообщение
+                    showAlert('✓ ' + (data.message || 'Изменения сохранены успешно!'), 'success');
+                    
+                    // Закрываем модальное окно
+                    const modalElement = document.getElementById('requestDetailsModal');
+                    const modal = bootstrap.Modal.getInstance(modalElement);
+                    if (modal) {
+                        modal.hide();
+                    }
+                    
+                    // Перезагружаем страницу через 1 секунду
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                    
+                } else {
+                    // ОШИБКА от сервера
+                    throw new Error(data.error || 'Неизвестная ошибка сервера');
+                }
+                
+            } catch (error) {
+                console.error('Ошибка при сохранении:', error);
+                
+                // Восстанавливаем кнопку
+                submitBtn.innerHTML = originalText;
+                submitBtn.classList.remove('btn-loading');
+                submitBtn.disabled = false;
+                
+                // Показываем ошибку
+                showAlert('❌ Ошибка сохранения: ' + error.message, 'danger');
+            }
+        });
+    }
+
+    // Функция для показа алертов
+    function showAlert(message, type) {
+        // Удаляем существующие алерты
+        const existingAlerts = document.querySelectorAll('.alert-dismissible');
+        existingAlerts.forEach(alert => {
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        });
+        
+        // Создаем новый алерт
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        // Вставляем в начало контейнера
+        const container = document.querySelector('.container-fluid');
+        container.insertBefore(alertDiv, container.firstChild);
+        
+        // Автоматическое закрытие через 5 секунд
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                const bsAlert = new bootstrap.Alert(alertDiv);
+                bsAlert.close();
+            }
+        }, 5000);
+    }
+});
+
+// Функция загрузки организаций для основного выпадающего списка
+function loadOrganizations() {
+    const organizationSelect = document.getElementById('organizationSelect');
+    if (!organizationSelect) return;
+
+    fetch('/get_organizations_json')
+        .then(response => response.json())
+        .then(organizations => {
+            organizations.forEach(org => {
+                const option = document.createElement('option');
+                option.value = org.short_name || org.full_name;
+                option.textContent = org.short_name ? `${org.short_name} (УНП: ${org.unp})` : org.full_name;
+                organizationSelect.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('Ошибка при загрузке организаций:', error);
+        });
+}
+
+// Функция загрузки организаций для модального окна
+function loadOrganizationsForModal() {
+    return new Promise((resolve, reject) => {
+        const orgSelect = document.getElementById('detail-client-organization-select');
+        if (!orgSelect) {
+            resolve();
+            return;
+        }
+
+        // Очищаем существующие опции (кроме первой)
+        while (orgSelect.options.length > 1) {
+            orgSelect.remove(1);
+        }
+
+        fetch('/get_organizations_json')
+            .then(response => response.json())
+            .then(organizations => {
+                organizations.forEach(org => {
+                    const option = document.createElement('option');
+                    option.value = org.short_name || org.full_name;
+                    option.textContent = org.short_name ? `${org.short_name} (УНП: ${org.unp})` : org.full_name;
+                    orgSelect.appendChild(option);
+                });
+                resolve();
+            })
+            .catch(error => {
+                console.error('Ошибка при загрузке организаций:', error);
+                reject(error);
+            });
+    });
+}
+
+// Обработка переключения между выпадающим списком и текстовым полем в модальном окне
+document.addEventListener('DOMContentLoaded', function() {
+    const orgSelectModal = document.getElementById('detail-client-organization-select');
+    const orgInputModal = document.getElementById('detail-client-organization-input');
+    
+    if (orgSelectModal && orgInputModal) {
+        orgSelectModal.addEventListener('change', function() {
+            if (this.value === '') {
+                orgInputModal.style.display = 'block';
+                orgInputModal.required = true;
+            } else {
+                orgInputModal.style.display = 'none';
+                orgInputModal.required = false;
+                orgInputModal.value = '';
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

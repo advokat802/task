@@ -1,0 +1,592 @@
+{% extends "base.html" %}
+
+{% block title %}Оборудование - Task Manager{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="bi bi-cpu"></i>
+            Оборудование
+            {% if show_removed %}
+            <span class="badge bg-secondary">все</span>
+            {% endif %}
+        </h2>
+        
+        <!-- Кнопка создания оборудования доступна ВСЕМ пользователям -->
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createEquipmentModal">
+            <i class="bi bi-plus-circle"></i> Добавить оборудование
+        </button>
+    </div>
+
+    <!-- Фильтры -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <!-- Фильтр по статусу -->
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Статус оборудования:</label>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="showRemovedToggle" 
+                               {% if show_removed %}checked{% endif %}
+                               onchange="toggleRemoved()">
+                        <label class="form-check-label" for="showRemovedToggle">
+                            {% if show_removed %}
+                            <span class="text-success">Показано снятое</span>
+                            {% else %}
+                            <span class="text-muted">Только установленное</span>
+                            {% endif %}
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Информация -->
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Статистика:</label>
+                    <div class="text-muted">
+                        <small>
+                            Всего: <strong>{{ equipment|length }}</strong>
+                            | Установлено: <strong class="text-success">{{ equipment|selectattr('status', 'equalto', 'installed')|list|length }}</strong>
+                            {% if show_removed %}
+                            | Снято: <strong class="text-danger">{{ equipment|selectattr('status', 'equalto', 'removed')|list|length }}</strong>
+                            {% endif %}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Таблица оборудования -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Список оборудования</h5>
+            <div class="text-muted">
+                <small>Показано: <strong>{{ equipment|length }}</strong> единиц</small>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if equipment %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Оборудование</th>
+                            <th>Серийный номер</th>
+                            <th>Клиент</th>
+                            <th>Адрес</th>
+                            <th>Дата установки</th>
+                            <th>Статус</th>
+                            <th>Установил</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in equipment %}
+                        <tr class="{% if item.status == 'removed' %}table-secondary{% endif %}">
+                            <td>
+                                <strong>{{ item.equipment_name }}</strong>
+                                {% if item.notes %}
+                                <br><small class="text-muted">{{ item.notes[:30] }}...</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.serial_number %}
+                                <code>{{ item.serial_number }}</code>
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ item.client_name }}</td>
+                            <td>{{ item.client_address }}</td>
+                            <td>{{ item.installation_date }}</td>
+                            <td>
+                                <span class="badge bg-{{ 'success' if item.status == 'installed' else 'secondary' }}">
+                                    {% if item.status == 'installed' %}Установлено{% else %}Снято{% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <small>{{ item.installed_by_username }}</small>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <!-- Кнопка просмотра для всех -->
+                                    <button class="btn btn-outline-primary view-equipment-btn"
+                                            data-equipment-id="{{ item.id }}"
+                                            data-equipment-name="{{ item.equipment_name }}"
+                                            data-serial-number="{{ item.serial_number }}"
+                                            data-installation-date="{{ item.installation_date }}"
+                                            data-client-name="{{ item.client_name }}"
+                                            data-client-address="{{ item.client_address }}"
+                                            data-status="{{ item.status }}"
+                                            data-notes="{{ item.notes }}"
+                                            data-installed-by="{{ item.installed_by_username }}"
+                                            data-warranty-until="{{ item.warranty_until }}"
+                                            data-specifications="{{ item.specifications }}">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    
+                                    <!-- Кнопки редактирования и удаления только для менеджеров -->
+                                    {% if user.role == 'manager' %}
+                                    <button class="btn btn-outline-warning edit-equipment-btn"
+                                            data-equipment-id="{{ item.id }}"
+                                            data-equipment-data='{{ item | tojson }}'>
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    
+                                    <form method="POST" action="{{ url_for('delete_equipment_route', equipment_id=item.id) }}" 
+                                          class="d-inline" onsubmit="return confirm('Удалить это оборудование?')">
+                                        <button type="submit" class="btn btn-outline-danger">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-cpu fs-1"></i>
+                <p class="mt-2">Оборудование не найдено</p>
+                <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#createEquipmentModal">
+                    <i class="bi bi-plus-circle"></i> Добавить первое оборудование
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно создания оборудования -->
+<div class="modal fade" id="createEquipmentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-plus-circle"></i> Добавить оборудование
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('create_equipment_route') }}">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Название оборудования *</label>
+                                <input type="text" name="equipment_name" class="form-control" placeholder="Например: Сервер Dell R740" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Серийный номер</label>
+                                <input type="text" name="serial_number" class="form-control" placeholder="SN123456789">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Дата установки *</label>
+                                <input type="date" name="installation_date" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Статус</label>
+                                <select name="status" class="form-select">
+                                    <option value="installed" selected>Установлено</option>
+                                    <option value="removed">Снято</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Имя клиента *</label>
+                                <input type="text" name="client_name" class="form-control" placeholder="ФИО клиента" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Адрес установки *</label>
+                                <input type="text" name="client_address" class="form-control" placeholder="Адрес установки оборудования" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Примечания</label>
+                        <textarea name="notes" class="form-control" rows="3" placeholder="Дополнительная информация об оборудовании..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Добавить оборудование</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно деталей оборудования -->
+<div class="modal fade" id="equipmentDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-cpu"></i> Детали оборудования
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Название оборудования</label>
+                            <p id="detail-equipment-name" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Серийный номер</label>
+                            <p id="detail-serial-number" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Статус</label>
+                            <p id="detail-status" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Дата установки</label>
+                            <p id="detail-installation-date" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Гарантия до</label>
+                            <p id="detail-warranty-until" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Примечания</label>
+                    <p id="detail-notes" class="form-control-plaintext"></p>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Характеристики</label>
+                    <p id="detail-specifications" class="form-control-plaintext"></p>
+                </div>
+                
+                <hr>
+                <h6 class="fw-bold">Информация об установке</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Клиент</label>
+                            <p id="detail-client-name" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Адрес установки</label>
+                            <p id="detail-client-address" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Установил</label>
+                            <p id="detail-installed-by" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно редактирования оборудования (только для менеджеров) -->
+{% if user.role == 'manager' %}
+<div class="modal fade" id="editEquipmentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-pencil"></i> Редактировать оборудование
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editEquipmentForm" method="POST" action="#">
+                <div class="modal-body">
+                    <input type="hidden" id="edit-equipment-id" name="equipment_id">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Название оборудования *</label>
+                                <input type="text" id="edit-equipment-name" name="equipment_name" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Серийный номер</label>
+                                <input type="text" id="edit-serial-number" name="serial_number" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Дата установки *</label>
+                                <input type="date" id="edit-installation-date" name="installation_date" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Статус *</label>
+                                <select id="edit-status" name="status" class="form-select" required>
+                                    <option value="installed">Установлено</option>
+                                    <option value="removed">Снято</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Гарантия до</label>
+                                <input type="date" id="edit-warranty-until" name="warranty_until" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Имя клиента *</label>
+                                <input type="text" id="edit-client-name" name="client_name" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Адрес установки *</label>
+                                <input type="text" id="edit-client-address" name="client_address" class="form-control" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Примечания</label>
+                        <textarea id="edit-notes" name="notes" class="form-control" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Характеристики</label>
+                        <textarea id="edit-specifications" name="specifications" class="form-control" rows="3" placeholder="Технические характеристики оборудования..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+.btn-group .btn {
+    border-radius: 0.375rem;
+    margin: 0 1px;
+}
+.table th {
+    background-color: #2c3e50;
+    color: white;
+}
+.badge {
+    font-size: 0.75em;
+}
+.form-control-plaintext {
+    min-height: 24px;
+    padding: 6px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+.table-secondary {
+    background-color: rgba(108, 117, 125, 0.05) !important;
+}
+</style>
+
+<script>
+function toggleRemoved() {
+    const showRemoved = document.getElementById('showRemovedToggle').checked;
+    const url = new URL(window.location.href);
+    url.searchParams.set('show_removed', showRemoved);
+    window.location.href = url.toString();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Автоматическое закрытие алертов
+    setTimeout(function() {
+        const alerts = document.querySelectorAll('.alert');
+        alerts.forEach(function(alert) {
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        });
+    }, 5000);
+
+    // Обработка кнопок просмотра оборудования
+    const viewEquipmentButtons = document.querySelectorAll('.view-equipment-btn');
+    viewEquipmentButtons.forEach(function(button) {
+        button.addEventListener('click', function() {
+            const equipmentName = this.getAttribute('data-equipment-name');
+            const serialNumber = this.getAttribute('data-serial-number') || '—';
+            const installationDate = this.getAttribute('data-installation-date');
+            const clientName = this.getAttribute('data-client-name');
+            const clientAddress = this.getAttribute('data-client-address');
+            const status = this.getAttribute('data-status');
+            const notes = this.getAttribute('data-notes') || '—';
+            const installedBy = this.getAttribute('data-installed-by');
+            const warrantyUntil = this.getAttribute('data-warranty-until') || '—';
+            const specifications = this.getAttribute('data-specifications') || '—';
+
+            // Заполняем модальное окно
+            document.getElementById('detail-equipment-name').textContent = equipmentName;
+            document.getElementById('detail-serial-number').textContent = serialNumber;
+            document.getElementById('detail-installation-date').textContent = installationDate;
+            document.getElementById('detail-client-name').textContent = clientName;
+            document.getElementById('detail-client-address').textContent = clientAddress;
+            document.getElementById('detail-status').innerHTML = status === 'installed' ? 
+                '<span class="badge bg-success">Установлено</span>' : 
+                '<span class="badge bg-secondary">Снято</span>';
+            document.getElementById('detail-notes').textContent = notes;
+            document.getElementById('detail-installed-by').textContent = installedBy;
+            document.getElementById('detail-warranty-until').textContent = warrantyUntil;
+            document.getElementById('detail-specifications').textContent = specifications;
+
+            // Показываем модальное окно
+            const modal = new bootstrap.Modal(document.getElementById('equipmentDetailsModal'));
+            modal.show();
+        });
+    });
+
+    // Обработка кнопок редактирования оборудования (только для менеджеров)
+    {% if user.role == 'manager' %}
+    const editEquipmentButtons = document.querySelectorAll('.edit-equipment-btn');
+    editEquipmentButtons.forEach(function(button) {
+        button.addEventListener('click', function() {
+            const equipmentData = JSON.parse(this.getAttribute('data-equipment-data'));
+            
+            // Заполняем форму редактирования
+            document.getElementById('edit-equipment-id').value = equipmentData.id;
+            document.getElementById('edit-equipment-name').value = equipmentData.equipment_name;
+            document.getElementById('edit-serial-number').value = equipmentData.serial_number || '';
+            document.getElementById('edit-installation-date').value = equipmentData.installation_date;
+            document.getElementById('edit-status').value = equipmentData.status;
+            document.getElementById('edit-client-name').value = equipmentData.client_name;
+            document.getElementById('edit-client-address').value = equipmentData.client_address;
+            document.getElementById('edit-notes').value = equipmentData.notes || '';
+            document.getElementById('edit-warranty-until').value = equipmentData.warranty_until || '';
+            document.getElementById('edit-specifications').value = equipmentData.specifications || '';
+
+            // Показываем модальное окно
+            const modal = new bootstrap.Modal(document.getElementById('editEquipmentModal'));
+            modal.show();
+        });
+    });
+
+    // Обработка формы редактирования оборудования
+    const editEquipmentForm = document.getElementById('editEquipmentForm');
+    if (editEquipmentForm) {
+        editEquipmentForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const equipmentId = formData.get('equipment_id');
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            
+            // Показываем индикатор загрузки
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Сохранение...';
+            submitBtn.disabled = true;
+            
+            try {
+                const response = await fetch(`/edit_equipment_full/${equipmentId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('✓ ' + (data.message || 'Изменения сохранены успешно!'), 'success');
+                    
+                    // Закрываем модальное окно и перезагружаем страницу
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('editEquipmentModal'));
+                    modal.hide();
+                    
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                    
+                } else {
+                    throw new Error(data.error || 'Неизвестная ошибка сервера');
+                }
+                
+            } catch (error) {
+                console.error('Ошибка при сохранении:', error);
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+                showAlert('❌ Ошибка сохранения: ' + error.message, 'danger');
+            }
+        });
+    }
+    {% endif %}
+
+    // Функция для показа алертов
+    function showAlert(message, type) {
+        const existingAlerts = document.querySelectorAll('.alert-dismissible');
+        existingAlerts.forEach(alert => {
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        });
+        
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        const container = document.querySelector('.container-fluid');
+        container.insertBefore(alertDiv, container.firstChild);
+        
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                const bsAlert = new bootstrap.Alert(alertDiv);
+                bsAlert.close();
+            }
+        }, 5000);
+    }
+});
+</script>
+{% endblock %}

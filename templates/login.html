@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center align-items-center min-vh-100">
+        <div class="col-md-4 col-sm-8">
+            <div class="card shadow-lg">
+                <div class="card-header bg-primary text-white text-center">
+                    <h4 class="mb-0">
+                        <i class="bi bi-person-badge"></i>
+                        Task Manager
+                    </h4>
+                    <small>Система управления задачами</small>
+                </div>
+                <div class="card-body p-4">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'danger' if category == 'error' else 'info' }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <form method="POST" action="{{ url_for('login') }}">
+                        <div class="mb-3">
+                            <label for="username" class="form-label">
+                                <i class="bi bi-person"></i> Имя пользователя
+                            </label>
+                            <input type="text" class="form-control form-control-lg" id="username" name="username" 
+                                   placeholder="Введите имя пользователя" required autofocus>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="password" class="form-label">
+                                <i class="bi bi-lock"></i> Пароль
+                            </label>
+                            <input type="password" class="form-control form-control-lg" id="password" name="password" 
+                                   placeholder="Введите пароль" required>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-box-arrow-in-right"></i> Войти в систему
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer text-center text-muted">
+                    <small>Для доступа к системе требуется авторизация</small>
+                    <div class="mt-2">
+                        <strong>Тестовые пользователи:</strong><br>
+                        Менеджер: admin / admin123<br>
+                        Сотрудник: tech1 / tech123
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.min-vh-100 {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+.card {
+    border: none;
+    border-radius: 15px;
+}
+</style>
+{% endblock %}

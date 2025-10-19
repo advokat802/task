@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Управление задачами</h2>
+
+<div class="table-responsive">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Название</th>
+                <th>Описание</th>
+                <th>Статус</th>
+                <th>Дедлайн</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for task in tasks %}
+            <tr>
+                <td>{{ task.title }}</td>
+                <td>{{ task.description }}</td>
+                <td>
+                    <span class="badge bg-{{ 'success' if task.status == 'completed' else 'warning' if task.status == 'in_progress' else 'secondary' }}">
+                        {{ task.status }}
+                    </span>
+                </td>
+                <td>{{ task.deadline }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('update_task_route', task_id=task.id) }}" class="d-inline">
+                        <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="pending" {{ 'selected' if task.status == 'pending' }}>Ожидает</option>
+                            <option value="in_progress" {{ 'selected' if task.status == 'in_progress' }}>В работе</option>
+                            <option value="completed" {{ 'selected' if task.status == 'completed' }}>Завершена</option>
+                        </select>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

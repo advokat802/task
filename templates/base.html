@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ru" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Task Manager - Система управления задачами{% endblock %}</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #34495e;
+            --accent-color: #3498db;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+        }
+        
+        .navbar-brand {
+            font-weight: 600;
+            font-size: 1.5rem;
+        }
+        
+        .main-content {
+            background-color: #f8f9fa;
+            min-height: calc(100vh - 56px);
+        }
+        
+        .card {
+            border: none;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            transition: box-shadow 0.2s;
+        }
+        
+        .card:hover {
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-card {
+            border-left: 4px solid;
+        }
+        
+        .stat-card.primary { border-left-color: var(--accent-color); }
+        .stat-card.success { border-left-color: var(--success-color); }
+        .stat-card.warning { border-left-color: var(--warning-color); }
+        .stat-card.danger { border-left-color: var(--danger-color); }
+        
+        .table th {
+            border-top: none;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+        
+        .badge {
+            font-weight: 500;
+        }
+        
+        .btn {
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(45deg, var(--accent-color), #2980b9);
+            border: none;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+        }
+        
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+        
+        .dropdown-menu {
+            border: none;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+            border-radius: 0.5rem;
+        }
+        
+        .dropdown-item {
+            padding: 0.5rem 1rem;
+            transition: all 0.2s;
+        }
+        
+        .dropdown-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .unassigned-badge {
+            background-color: #6c757d;
+            color: white;
+        }
+        
+        .take-request-btn {
+            background-color: #28a745;
+            border-color: #28a745;
+        }
+        
+        .take-request-btn:hover {
+            background-color: #218838;
+            border-color: #1e7e34;
+        }
+        
+        .bg-gradient-primary {
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%) !important;
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+        <div class="container-fluid">
+            <!-- Brand -->
+            <a class="navbar-brand" href="{{ url_for('dashboard') }}">
+                <i class="bi bi-cpu-fill me-2"></i>
+                <span>Task Manager</span>
+            </a>
+
+            <!-- Mobile Toggle -->
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarMain">
+                <!-- Navigation Links -->
+                {% if current_user.is_authenticated %}
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}" 
+                           href="{{ url_for('dashboard') }}">
+                            <i class="bi bi-speedometer2 me-1"></i>Главная
+                        </a>
+                    </li>
+                    
+                    <!-- Requests Dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ 'active' if request.endpoint in ['requests_page', 'create_request_route'] }}" 
+                           href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-clipboard-check me-1"></i>Заявки
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item {{ 'active' if request.endpoint == 'requests_page' and not request.args.get('type') }}" 
+                                   href="{{ url_for('requests_page') }}">
+                                    <i class="bi bi-list-ul me-2"></i>Все заявки
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ 'active' if request.args.get('type') == 'remote' }}" 
+                                   href="{{ url_for('requests_page', type='remote') }}">
+                                    <i class="bi bi-laptop me-2"></i>Удаленные
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ 'active' if request.args.get('type') == 'on_site' }}" 
+                                   href="{{ url_for('requests_page', type='on_site') }}">
+                                    <i class="bi bi-geo-alt me-2"></i>Выездные
+                                </a>
+                            </li>
+                            {% if current_user.role in ['manager', 'admin'] %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ 'active' if request.endpoint == 'create_request_route' }}" 
+                                   href="{{ url_for('create_request_route') }}">
+                                    <i class="bi bi-plus-circle me-2"></i>Создать заявку
+                                </a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </li>
+                    
+                    <!-- Documents Dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ 'active' if request.endpoint == 'documents_page' }}" 
+                           href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-files me-1"></i>Документы
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item {{ 'active' if request.args.get('type') == 'all' or not request.args.get('type') }}" 
+                                   href="{{ url_for('documents_page') }}">
+                                    <i class="bi bi-folder me-2"></i>Все документы
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ 'active' if request.args.get('type') == 'act' }}" 
+                                   href="{{ url_for('documents_page', type='act') }}">
+                                    <i class="bi bi-file-text me-2"></i>Акты
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ 'active' if request.args.get('type') == 'invoice' }}" 
+                                   href="{{ url_for('documents_page', type='invoice') }}">
+                                    <i class="bi bi-receipt me-2"></i>Счета
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    
+                    <!-- Equipment -->
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active' if request.endpoint == 'equipment_page' }}" 
+                           href="{{ url_for('equipment_page') }}">
+                            <i class="bi bi-cpu me-1"></i>Оборудование
+                        </a>
+                    </li>
+
+					<!-- Organizations -->
+					<li class="nav-item">
+						<a class="nav-link {% if request.endpoint == 'organizations_page' %}active{% endif %}" 
+							href="{{ url_for('organizations_page') }}">
+							<i class="bi bi-building me-1"></i>Организации
+						</a>
+					</li>
+
+                    <!-- Users Management (только для менеджеров и админов) -->
+                    {% if current_user.role in ['manager', 'admin'] %}
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active' if request.endpoint == 'users_page' }}" 
+                           href="{{ url_for('users_page') }}">
+                            <i class="bi bi-people me-1"></i>Пользователи
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+
+                <!-- Right Side -->
+                <ul class="navbar-nav ms-auto">
+                    <!-- User Menu -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center" 
+                           href="#" role="button" data-bs-toggle="dropdown">
+                            <div class="user-avatar me-2">
+                                {{ current_user.username[0].upper() }}
+                            </div>
+                            <span>{{ current_user.username }}</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <span class="dropdown-item-text">
+                                    <small class="text-muted">Роль: {{ current_user.role }}</small>
+                                </span>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="#">
+                                    <i class="bi bi-person me-2"></i>Профиль
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="#">
+                                    <i class="bi bi-gear me-2"></i>Настройки
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item text-danger" href="{{ url_for('logout') }}">
+                                    <i class="bi bi-box-arrow-right me-2"></i>Выйти
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Main Content Area -->
+            <div class="col-12 main-content p-0">
+                <div class="p-4">
+                    <!-- Flash Messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-{{ 'check-circle' if category == 'success' else 'exclamation-triangle' if category == 'warning' else 'info-circle' if category == 'info' else 'x-circle' }} me-2"></i>
+                                        <span>{{ message }}</span>
+                                    </div>
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <!-- Page Content -->
+                    {% block content %}{% endblock %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-light py-3 mt-5">
+        <div class="container-fluid">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <small>
+                        <i class="bi bi-cpu"></i> Task Manager v1.0 &copy; 2024 
+                    </small>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <small>
+                        <span class="me-3">Пользователь: 
+                            <strong>{{ current_user.username if current_user.is_authenticated else 'Гость' }}</strong>
+                        </span>
+                        <span>Роль: 
+                            <strong>{{ current_user.role if current_user.is_authenticated else 'Не авторизован' }}</strong>
+                        </span>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JavaScript -->
+    <script>
+        // Auto-dismiss alerts after 5 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                const alerts = document.querySelectorAll('.alert');
+                alerts.forEach(alert => {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                });
+            }, 5000);
+        });
+
+        // Theme switcher
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-bs-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-bs-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        }
+
+        // Initialize theme
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-bs-theme', savedTheme);
+        });
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

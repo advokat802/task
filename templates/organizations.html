@@ -1,0 +1,412 @@
+{% extends "base.html" %}
+
+{% block title %}Организации{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">📋 Организации</h1>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addOrganizationModal">
+            <i class="bi bi-plus-circle me-2"></i>Добавить организацию
+        </button>
+    </div>
+
+    <!-- Поиск -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-8">
+                    <input type="text" class="form-control" name="search" placeholder="Поиск по УНП, названию, адресу..." value="{{ search_query }}">
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-outline-primary w-100">
+                        <i class="bi bi-search me-2"></i>Найти
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Список организаций -->
+    <div class="card">
+        <div class="card-body">
+            {% if organizations %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Название организации</th>
+                            <th>УНП</th>
+                            <th>Юридический адрес</th>
+                            <th>Руководитель</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for org in organizations %}
+                        <tr>
+                            <td>
+                                <strong>{{ org.short_name }}</strong>
+                                {% if org.phone or org.email %}
+                                <br>
+                                <small class="text-muted">
+                                    {% if org.phone %}{{ org.phone }}{% endif %}
+                                    {% if org.email %} | {{ org.email }}{% endif %}
+                                </small>
+                                {% endif %}
+                            </td>
+                            <td><code>{{ org.unp }}</code></td>
+                            <td>{{ org.legal_address or 'Не указан' }}</td>
+                            <td>{{ org.director or 'Не указан' }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-primary btn-edit-org" 
+                                            data-bs-toggle="modal" data-bs-target="#editOrganizationModal"
+                                            data-id="{{ org.id }}"
+                                            data-unp="{{ org.unp }}"
+                                            data-short-name="{{ org.short_name or '' }}"
+                                            data-legal-address="{{ org.legal_address or '' }}"
+                                            data-actual-address="{{ org.actual_address or '' }}"
+                                            data-phone="{{ org.phone or '' }}"
+                                            data-email="{{ org.email or '' }}"
+                                            data-director="{{ org.director or '' }}">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    {% if user.role == 'manager' %}
+                                    <button type="button" class="btn btn-outline-danger btn-delete-org" 
+                                            data-id="{{ org.id }}" 
+                                            data-name="{{ org.short_name }}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-building fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">Организации не найдены</h5>
+                <p class="text-muted">Добавьте первую организацию или измените условия поиска</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно добавления организации -->
+<div class="modal fade" id="addOrganizationModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Добавить организацию</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addOrganizationForm">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">УНП *</label>
+                            <input type="text" class="form-control" name="unp" required maxlength="9" pattern="\d{9}">
+                            <div class="form-text">9 цифр</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Название организации *</label>
+                            <input type="text" class="form-control" name="short_name" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Юридический адрес</label>
+                            <textarea class="form-control" name="legal_address" rows="2"></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Фактический адрес</label>
+                            <textarea class="form-control" name="actual_address" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Телефон</label>
+                            <input type="tel" class="form-control" name="phone">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" name="email">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Руководитель</label>
+                            <input type="text" class="form-control" name="director">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveOrganization()">
+                    <i class="bi bi-check-lg me-2"></i>Сохранить
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно редактирования организации -->
+<div class="modal fade" id="editOrganizationModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Редактировать организацию</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editOrganizationForm">
+                    <input type="hidden" name="org_id" id="editOrgId">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">УНП *</label>
+                            <input type="text" class="form-control" name="unp" id="editUnp" required maxlength="9" pattern="\d{9}" readonly>
+                            <div class="form-text">УНП нельзя изменить</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Название организации *</label>
+                            <input type="text" class="form-control" name="short_name" id="editShortName" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Юридический адрес</label>
+                            <textarea class="form-control" name="legal_address" id="editLegalAddress" rows="2"></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Фактический адрес</label>
+                            <textarea class="form-control" name="actual_address" id="editActualAddress" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Телефон</label>
+                            <input type="tel" class="form-control" name="phone" id="editPhone">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" name="email" id="editEmail">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Руководитель</label>
+                            <input type="text" class="form-control" name="director" id="editDirector">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="updateOrganization()">
+                    <i class="bi bi-check-lg me-2"></i>Сохранить изменения
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Простая функция для создания организации
+function saveOrganization() {
+    console.log('Сохранение организации...');
+    
+    const form = document.getElementById('addOrganizationForm');
+    const formData = new FormData(form);
+    
+    // Проверяем обязательные поля
+    const unp = formData.get('unp');
+    const shortName = formData.get('short_name');
+    
+    if (!unp || unp.length !== 9) {
+        alert('УНП должен содержать 9 цифр');
+        return;
+    }
+    
+    if (!shortName) {
+        alert('Название организации обязательно для заполнения');
+        return;
+    }
+
+    // Блокируем кнопку
+    const btn = document.querySelector('#addOrganizationModal .btn-primary');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i> Сохранение...';
+    
+    // Отправляем запрос
+    fetch('/create_organization', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Закрываем модальное окно и обновляем страницу
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addOrganizationModal'));
+            modal.hide();
+            location.reload();
+        } else {
+            alert('❌ ' + data.error);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check-lg me-2"></i> Сохранить';
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка:', error);
+        alert('❌ Ошибка сети');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-lg me-2"></i> Сохранить';
+    });
+}
+
+// Функция для обновления организации
+function updateOrganization() {
+    console.log('Обновление организации...');
+    
+    const form = document.getElementById('editOrganizationForm');
+    const formData = new FormData(form);
+    const orgId = document.getElementById('editOrgId').value;
+    
+    // Проверяем обязательные поля
+    const shortName = document.getElementById('editShortName').value.trim();
+    
+    if (!shortName) {
+        alert('Название организации обязательно для заполнения');
+        return;
+    }
+
+    console.log('Отправляемые данные:', {
+        org_id: orgId,
+        short_name: shortName,
+        legal_address: formData.get('legal_address'),
+        actual_address: formData.get('actual_address'),
+        phone: formData.get('phone'),
+        email: formData.get('email'),
+        director: formData.get('director')
+    });
+    
+    // Блокируем кнопку
+    const btn = document.querySelector('#editOrganizationModal .btn-primary');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i> Сохранение...';
+    
+    // Создаем URLSearchParams для отправки данных (БЕЗ УНП, так как он readonly)
+    const params = new URLSearchParams();
+    params.append('org_id', orgId);
+    params.append('short_name', shortName);
+    params.append('legal_address', formData.get('legal_address') || '');
+    params.append('actual_address', formData.get('actual_address') || '');
+    params.append('phone', formData.get('phone') || '');
+    params.append('email', formData.get('email') || '');
+    params.append('director', formData.get('director') || '');
+    
+    fetch('/edit_organization_full/' + orgId, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params
+    })
+    .then(response => response.json())
+    .then(response => {
+        console.log('Ответ сервера:', response);
+        if (response.success) {
+            // Закрываем модальное окно и обновляем страницу
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editOrganizationModal'));
+            modal.hide();
+            location.reload();
+        } else {
+            alert('❌ ' + response.error);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check-lg me-2"></i> Сохранить изменения';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('❌ Ошибка при обновлении');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-lg me-2"></i> Сохранить изменения';
+    });
+}
+
+// Функция для заполнения формы редактирования
+function fillEditForm(button) {
+    console.log('Заполнение формы редактирования...');
+    
+    const orgId = button.getAttribute('data-id');
+    const unp = button.getAttribute('data-unp');
+    const shortName = button.getAttribute('data-short-name');
+    const legalAddress = button.getAttribute('data-legal-address');
+    const actualAddress = button.getAttribute('data-actual-address');
+    const phone = button.getAttribute('data-phone');
+    const email = button.getAttribute('data-email');
+    const director = button.getAttribute('data-director');
+
+    console.log('Данные из кнопки:', { 
+        orgId, unp, shortName, legalAddress, actualAddress, phone, email, director 
+    });
+
+    // Заполняем форму
+    document.getElementById('editOrgId').value = orgId || '';
+    document.getElementById('editUnp').value = unp || '';
+    document.getElementById('editShortName').value = shortName || '';
+    document.getElementById('editLegalAddress').value = legalAddress || '';
+    document.getElementById('editActualAddress').value = actualAddress || '';
+    document.getElementById('editPhone').value = phone || '';
+    document.getElementById('editEmail').value = email || '';
+    document.getElementById('editDirector').value = director || '';
+    
+    console.log('Форма заполнена');
+}
+
+// Инициализация после загрузки DOM
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM загружен, инициализация...');
+    
+    // Валидация УНП
+    document.querySelectorAll('input[name="unp"]').forEach(input => {
+        input.addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '').slice(0, 9);
+        });
+    });
+
+    // Обработчики для кнопок редактирования
+    document.querySelectorAll('.btn-edit-org').forEach(button => {
+        button.addEventListener('click', function() {
+            console.log('Клик по редактированию');
+            fillEditForm(this);
+        });
+    });
+
+    // Удаление организации
+    document.querySelectorAll('.btn-delete-org').forEach(button => {
+        button.addEventListener('click', function() {
+            const orgId = this.getAttribute('data-id');
+            const orgName = this.getAttribute('data-name');
+            
+            if (confirm(`Удалить организацию "${orgName}"?`)) {
+                fetch('/delete_organization/' + orgId, {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(response => {
+                    if (response.success) {
+                        alert('✅ ' + response.message);
+                        location.reload();
+                    } else {
+                        alert('❌ ' + response.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('❌ Ошибка при удалении');
+                });
+            }
+        });
+    });
+
+    // Очистка при закрытии модальных окон
+    document.getElementById('addOrganizationModal').addEventListener('hidden.bs.modal', function () {
+        document.getElementById('addOrganizationForm').reset();
+    });
+});
+</script>
+{% endblock %}

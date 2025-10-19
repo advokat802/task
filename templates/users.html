@@ -1,0 +1,893 @@
+{% extends "base.html" %}
+
+{% block title %}Управление пользователями - Task Manager{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Заголовок и кнопки -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="bi bi-people"></i>
+            Управление пользователями
+        </h2>
+        
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
+            <i class="bi bi-person-plus"></i> Добавить пользователя
+        </button>
+    </div>
+
+    <!-- Информационная панель -->
+    <div class="alert alert-info mb-4">
+        <i class="bi bi-info-circle"></i>
+        <strong>Информация:</strong> На этой странице вы можете управлять пользователями системы, создавать новые учетные записи, изменять роли и сбрасывать пароли.
+    </div>
+
+    <!-- Статистика пользователей -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card primary">
+                <div class="card-body">
+                    <h5 class="card-title">{{ users|length }}</h5>
+                    <p class="card-text">Всего пользователей</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card success">
+                <div class="card-body">
+                    <h5 class="card-title">{{ users|selectattr('is_active', 'equalto', 1)|list|length }}</h5>
+                    <p class="card-text">Активных</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card warning">
+                <div class="card-body">
+                    <h5 class="card-title">{{ users|selectattr('role', 'equalto', 'manager')|selectattr('is_active', 'equalto', 1)|list|length }}</h5>
+                    <p class="card-text">Менеджеров</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card info">
+                <div class="card-body">
+                    <h5 class="card-title">{{ users|selectattr('role', 'equalto', 'employee')|selectattr('is_active', 'equalto', 1)|list|length }}</h5>
+                    <p class="card-text">Сотрудников</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Фильтр показа неактивных пользователей -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="showInactiveToggle" 
+                       {% if show_inactive %}checked{% endif %}>
+                <label class="form-check-label" for="showInactiveToggle">
+                    Показать отключенных пользователей
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Таблица пользователей -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Список пользователей</h5>
+            <div class="text-muted">
+                <small>Показано: <strong>{{ users|length }}</strong> пользователей</small>
+                {% if not show_inactive %}
+                <span class="badge bg-warning ms-2">скрыты отключенные</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-body">
+            {% if users %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Пользователь</th>
+                            <th>Роль</th>
+                            <th>Статус</th>
+                            <th>Статистика</th>
+                            <th>Дата регистрации</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr class="{% if not user.is_active %}table-secondary text-muted{% endif %}">
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="user-avatar me-3 {% if not user.is_active %}bg-secondary{% endif %}">
+                                        {{ user.username[0].upper() }}
+                                    </div>
+                                    <div>
+                                        <strong>{{ user.username }}</strong>
+                                        {% if user.id == current_user.id %}
+                                        <span class="badge bg-primary ms-2">Вы</span>
+                                        {% endif %}
+                                        {% if not user.is_active %}
+                                        <span class="badge bg-secondary ms-2">Отключен</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge {% if user.role == 'manager' %}bg-success{% else %}bg-secondary{% endif %}">
+                                    {% if user.role == 'manager' %}
+                                    <i class="bi bi-star-fill"></i> Менеджер
+                                    {% else %}
+                                    <i class="bi bi-person"></i> Сотрудник
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                {% if user.is_active %}
+                                <span class="badge bg-success">
+                                    <i class="bi bi-check-circle"></i> Активен
+                                </span>
+                                {% else %}
+                                <span class="badge bg-danger">
+                                    <i class="bi bi-x-circle"></i> Отключен
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="small text-muted">
+                                    {% if user.stats %}
+                                    <div>Заявок: {{ user.stats.assigned_requests }} назнач./{{ user.stats.created_requests }} создано</div>
+                                    <div>Документов: {{ user.stats.created_documents }}</div>
+                                    <div>Оборудования: {{ user.stats.installed_equipment }}</div>
+                                    {% else %}
+                                    <span class="text-muted">Нет данных</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <small>{{ user.created_at[:10] }}</small>
+                            </td>
+                            <td>
+                                <div class="btn-group-vertical btn-group-sm">
+                                    <!-- Включение/отключение пользователя -->
+                                    {% if user.id != current_user.id %}
+                                        {% if user.is_active %}
+                                        <button class="btn btn-outline-warning btn-sm" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#deactivateUserModal"
+                                                data-user-id="{{ user.id }}"
+                                                data-user-name="{{ user.username }}"
+                                                title="Отключить пользователя">
+                                            <i class="bi bi-person-dash"></i>
+                                        </button>
+                                        {% else %}
+                                        <button class="btn btn-outline-success btn-sm" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#activateUserModal"
+                                                data-user-id="{{ user.id }}"
+                                                data-user-name="{{ user.username }}"
+                                                title="Включить пользователя">
+                                            <i class="bi bi-person-check"></i>
+                                        </button>
+                                        {% endif %}
+                                    {% else %}
+                                        <button class="btn btn-outline-secondary btn-sm" disabled title="Нельзя отключить себя">
+                                            <i class="bi bi-person-dash"></i>
+                                        </button>
+                                    {% endif %}
+                                    
+                                    <!-- Смена роли -->
+                                    <button class="btn btn-outline-info btn-sm" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#changeRoleModal"
+                                            data-user-id="{{ user.id }}"
+                                            data-user-name="{{ user.username }}"
+                                            data-current-role="{{ user.role }}"
+                                            {% if not user.is_active %}disabled{% endif %}
+                                            title="Изменить роль">
+                                        <i class="bi bi-arrow-repeat"></i>
+                                    </button>
+                                    
+                                    <!-- Сброс пароля -->
+                                    <button class="btn btn-outline-primary btn-sm" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#resetPasswordModal"
+                                            data-user-id="{{ user.id }}"
+                                            data-user-name="{{ user.username }}"
+                                            {% if not user.is_active %}disabled{% endif %}
+                                            title="Сбросить пароль">
+                                        <i class="bi bi-key"></i>
+                                    </button>
+                                    
+                                    <!-- Удаление -->
+                                    {% if user.id != current_user.id %}
+                                    <button class="btn btn-outline-danger btn-sm" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#deleteUserModal"
+                                            data-user-id="{{ user.id }}"
+                                            data-user-name="{{ user.username }}"
+                                            title="Удалить пользователя">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                    {% else %}
+                                    <button class="btn btn-outline-secondary btn-sm" disabled title="Нельзя удалить себя">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-people fs-1"></i>
+                <p class="mt-2">Пользователи не найдены</p>
+                <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#createUserModal">
+                    <i class="bi bi-person-plus"></i> Добавить первого пользователя
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно создания пользователя -->
+<div class="modal fade" id="createUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-plus"></i> Добавить пользователя
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="createUserForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Имя пользователя *</label>
+                        <input type="text" name="username" class="form-control" 
+                               placeholder="Введите имя пользователя" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Пароль *</label>
+                        <input type="password" name="password" class="form-control" 
+                               placeholder="Введите пароль" required minlength="4">
+                        <div class="form-text">Пароль должен содержать минимум 4 символа</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Роль *</label>
+                        <select name="role" class="form-select" required>
+                            <option value="employee">Сотрудник</option>
+                            <option value="manager">Менеджер</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary" id="createUserBtn">
+                        <i class="bi bi-person-plus"></i> Создать пользователя
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно смены роли -->
+<div class="modal fade" id="changeRoleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-arrow-repeat"></i> Изменить роль пользователя
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="changeRoleForm">
+                <div class="modal-body">
+                    <input type="hidden" id="change-role-user-id" name="user_id">
+                    
+                    <div class="mb-3">
+                        <p>Пользователь: <strong id="change-role-user-name"></strong></p>
+                        <p>Текущая роль: <strong id="change-role-current-role"></strong></p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Новая роль *</label>
+                        <select name="role" class="form-select" required>
+                            <option value="employee">Сотрудник</option>
+                            <option value="manager">Менеджер</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-warning" id="changeRoleBtn">
+                        <i class="bi bi-arrow-repeat"></i> Изменить роль
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно сброса пароля -->
+<div class="modal fade" id="resetPasswordModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-key"></i> Сбросить пароль
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="resetPasswordForm">
+                <div class="modal-body">
+                    <input type="hidden" id="reset-password-user-id" name="user_id">
+                    
+                    <div class="mb-3">
+                        <p>Пользователь: <strong id="reset-password-user-name"></strong></p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Новый пароль *</label>
+                        <input type="password" name="new_password" class="form-control" 
+                               placeholder="Введите новый пароль" required minlength="4">
+                        <div class="form-text">Пароль должен содержать минимум 4 символа</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-info" id="resetPasswordBtn">
+                        <i class="bi bi-key"></i> Сбросить пароль
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно отключения пользователя -->
+<div class="modal fade" id="deactivateUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-dash"></i> Отключить пользователя
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="deactivateUserForm">
+                <div class="modal-body">
+                    <input type="hidden" id="deactivate-user-id" name="user_id">
+                    <input type="hidden" name="is_active" value="0">
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Внимание!</strong> Вы собираетесь отключить пользователя 
+                        <strong id="deactivate-user-name"></strong>.
+                    </div>
+                    
+                    <p>Отключенный пользователь:</p>
+                    <ul>
+                        <li>Не сможет войти в систему</li>
+                        <li>Будет скрыт из списков назначения</li>
+                        <li>Сохранит все свои данные в системе</li>
+                        <li>Может быть включен обратно в любое время</li>
+                    </ul>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="confirmDeactivate" required>
+                        <label class="form-check-label" for="confirmDeactivate">
+                            Я понимаю последствия и хочу отключить этого пользователя
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-warning" id="deactivateUserBtn" disabled>
+                        <i class="bi bi-person-dash"></i> Отключить пользователя
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно включения пользователя -->
+<div class="modal fade" id="activateUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-check"></i> Включить пользователя
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="activateUserForm">
+                <div class="modal-body">
+                    <input type="hidden" id="activate-user-id" name="user_id">
+                    <input type="hidden" name="is_active" value="1">
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        Вы собираетесь включить пользователя 
+                        <strong id="activate-user-name"></strong>.
+                    </div>
+                    
+                    <p>После включения пользователь:</p>
+                    <ul>
+                        <li>Сможет войти в систему</li>
+                        <li>Будет доступен для назначения заявок</li>
+                        <li>Сохранит все свои предыдущие данные</li>
+                    </ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-success" id="activateUserBtn">
+                        <i class="bi bi-person-check"></i> Включить пользователя
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно удаления пользователя -->
+<div class="modal fade" id="deleteUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-trash"></i> Удалить пользователя
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="deleteUserForm">
+                <div class="modal-body">
+                    <input type="hidden" id="delete-user-id" name="user_id">
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Внимание!</strong> Вы собираетесь удалить пользователя 
+                        <strong id="delete-user-name"></strong>.
+                    </div>
+                    
+                    <p>Это действие нельзя отменить. Пользователь будет полностью удален из системы.</p>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="confirmDelete" required>
+                        <label class="form-check-label" for="confirmDelete">
+                            Я понимаю последствия и хочу удалить этого пользователя
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-danger" id="deleteUserBtn" disabled>
+                        <i class="bi bi-trash"></i> Удалить пользователя
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.btn-group-vertical .btn {
+    margin-bottom: 2px;
+}
+
+.stat-card {
+    border-left: 4px solid;
+}
+
+.stat-card.primary { border-left-color: var(--accent-color); }
+.stat-card.success { border-left-color: var(--success-color); }
+.stat-card.warning { border-left-color: var(--warning-color); }
+.stat-card.info { border-left-color: #17a2b8; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Обработка создания пользователя
+    const createUserForm = document.getElementById('createUserForm');
+    if (createUserForm) {
+        createUserForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const submitBtn = document.getElementById('createUserBtn');
+            const originalText = submitBtn.innerHTML;
+            
+            // Показываем индикатор загрузки
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Создание...';
+            submitBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/create_user', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('✓ ' + data.message, 'success');
+                    
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('createUserModal'));
+                    modal.hide();
+                    
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                    
+                } else {
+                    throw new Error(data.error);
+                }
+                
+            } catch (error) {
+                showAlert('❌ Ошибка: ' + error.message, 'danger');
+                
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+    }
+
+    // Переключение показа неактивных пользователей
+    const showInactiveToggle = document.getElementById('showInactiveToggle');
+    if (showInactiveToggle) {
+        showInactiveToggle.addEventListener('change', function() {
+            const url = new URL(window.location);
+            url.searchParams.set('show_inactive', this.checked);
+            window.location.href = url.toString();
+        });
+    }
+
+    // Обработка смены роли
+    const changeRoleButtons = document.querySelectorAll('[data-bs-target="#changeRoleModal"]');
+    changeRoleButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const userId = this.getAttribute('data-user-id');
+            const userName = this.getAttribute('data-user-name');
+            const currentRole = this.getAttribute('data-current-role');
+            
+            document.getElementById('change-role-user-id').value = userId;
+            document.getElementById('change-role-user-name').textContent = userName;
+            document.getElementById('change-role-current-role').textContent = 
+                currentRole === 'manager' ? 'Менеджер' : 'Сотрудник';
+            document.querySelector('#changeRoleForm select[name="role"]').value = currentRole;
+        });
+    });
+
+    const changeRoleForm = document.getElementById('changeRoleForm');
+    if (changeRoleForm) {
+        changeRoleForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const submitBtn = document.getElementById('changeRoleBtn');
+            const originalText = submitBtn.innerHTML;
+            
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Обновление...';
+            submitBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/update_user_role/' + formData.get('user_id'), {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('✓ ' + data.message, 'success');
+                    
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('changeRoleModal'));
+                    modal.hide();
+                    
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                    
+                } else {
+                    throw new Error(data.error);
+                }
+                
+            } catch (error) {
+                showAlert('❌ Ошибка: ' + error.message, 'danger');
+                
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+    }
+
+    // Обработка сброса пароля
+    const resetPasswordButtons = document.querySelectorAll('[data-bs-target="#resetPasswordModal"]');
+    resetPasswordButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const userId = this.getAttribute('data-user-id');
+            const userName = this.getAttribute('data-user-name');
+            
+            document.getElementById('reset-password-user-id').value = userId;
+            document.getElementById('reset-password-user-name').textContent = userName;
+        });
+    });
+
+    const resetPasswordForm = document.getElementById('resetPasswordForm');
+    if (resetPasswordForm) {
+        resetPasswordForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const submitBtn = document.getElementById('resetPasswordBtn');
+            const originalText = submitBtn.innerHTML;
+            
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Сброс...';
+            submitBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/reset_user_password/' + formData.get('user_id'), {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('✓ ' + data.message, 'success');
+                    
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('resetPasswordModal'));
+                    modal.hide();
+                    
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                    
+                } else {
+                    throw new Error(data.error);
+                }
+                
+            } catch (error) {
+                showAlert('❌ Ошибка: ' + error.message, 'danger');
+                
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+    }
+
+    // Обработка отключения пользователя
+    const deactivateButtons = document.querySelectorAll('[data-bs-target="#deactivateUserModal"]');
+    deactivateButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const userId = this.getAttribute('data-user-id');
+            const userName = this.getAttribute('data-user-name');
+            
+            document.getElementById('deactivate-user-id').value = userId;
+            document.getElementById('deactivate-user-name').textContent = userName;
+        });
+    });
+
+    // Включение кнопки отключения при подтверждении
+    const confirmDeactivateCheckbox = document.getElementById('confirmDeactivate');
+    const deactivateUserBtn = document.getElementById('deactivateUserBtn');
+    
+    if (confirmDeactivateCheckbox && deactivateUserBtn) {
+        confirmDeactivateCheckbox.addEventListener('change', function() {
+            deactivateUserBtn.disabled = !this.checked;
+        });
+    }
+
+    const deactivateUserForm = document.getElementById('deactivateUserForm');
+    if (deactivateUserForm) {
+        deactivateUserForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const submitBtn = document.getElementById('deactivateUserBtn');
+            const originalText = submitBtn.innerHTML;
+            
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Отключение...';
+            submitBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/update_user_status/' + formData.get('user_id'), {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('✓ ' + data.message, 'success');
+                    
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('deactivateUserModal'));
+                    modal.hide();
+                    
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                    
+                } else {
+                    throw new Error(data.error);
+                }
+                
+            } catch (error) {
+                showAlert('❌ Ошибка: ' + error.message, 'danger');
+                
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+    }
+
+    // Обработка включения пользователя
+    const activateButtons = document.querySelectorAll('[data-bs-target="#activateUserModal"]');
+    activateButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const userId = this.getAttribute('data-user-id');
+            const userName = this.getAttribute('data-user-name');
+            
+            document.getElementById('activate-user-id').value = userId;
+            document.getElementById('activate-user-name').textContent = userName;
+        });
+    });
+
+    const activateUserForm = document.getElementById('activateUserForm');
+    if (activateUserForm) {
+        activateUserForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const submitBtn = document.getElementById('activateUserBtn');
+            const originalText = submitBtn.innerHTML;
+            
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Включение...';
+            submitBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/update_user_status/' + formData.get('user_id'), {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('✓ ' + data.message, 'success');
+                    
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('activateUserModal'));
+                    modal.hide();
+                    
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                    
+                } else {
+                    throw new Error(data.error);
+                }
+                
+            } catch (error) {
+                showAlert('❌ Ошибка: ' + error.message, 'danger');
+                
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+    }
+
+    // Обработка удаления пользователя
+    const deleteUserButtons = document.querySelectorAll('[data-bs-target="#deleteUserModal"]');
+    deleteUserButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const userId = this.getAttribute('data-user-id');
+            const userName = this.getAttribute('data-user-name');
+            
+            document.getElementById('delete-user-id').value = userId;
+            document.getElementById('delete-user-name').textContent = userName;
+        });
+    });
+
+    // Включение кнопки удаления при подтверждении
+    const confirmDeleteCheckbox = document.getElementById('confirmDelete');
+    const deleteUserBtn = document.getElementById('deleteUserBtn');
+    
+    if (confirmDeleteCheckbox && deleteUserBtn) {
+        confirmDeleteCheckbox.addEventListener('change', function() {
+            deleteUserBtn.disabled = !this.checked;
+        });
+    }
+
+    const deleteUserForm = document.getElementById('deleteUserForm');
+    if (deleteUserForm) {
+        deleteUserForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const submitBtn = document.getElementById('deleteUserBtn');
+            const originalText = submitBtn.innerHTML;
+            
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Удаление...';
+            submitBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/delete_user/' + formData.get('user_id'), {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('✓ ' + data.message, 'success');
+                    
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('deleteUserModal'));
+                    modal.hide();
+                    
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                    
+                } else {
+                    throw new Error(data.error);
+                }
+                
+            } catch (error) {
+                showAlert('❌ Ошибка: ' + error.message, 'danger');
+                
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+    }
+
+    // Функция для показа алертов
+    function showAlert(message, type) {
+        const existingAlerts = document.querySelectorAll('.alert-dismissible');
+        existingAlerts.forEach(alert => {
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        });
+        
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        const container = document.querySelector('.container-fluid');
+        container.insertBefore(alertDiv, container.firstChild);
+        
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                const bsAlert = new bootstrap.Alert(alertDiv);
+                bsAlert.close();
+            }
+        }, 5000);
+    }
+});
+</script>
+{% endblock %}
