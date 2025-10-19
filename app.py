@@ -868,18 +868,19 @@ def organizations_page():
                              search_query='',
                              user=current_user)
 
+# НОВЫЙ ИСПРАВЛЕННЫЙ МАРШРУТ
 @app.route('/create_organization', methods=['POST'])
 @login_required
 def create_organization_route():
     """Создать новую организацию"""
     try:
-        unp = request.form.get('unp')
-        short_name = request.form.get('short_name')
-        legal_address = request.form.get('legal_address')
-        actual_address = request.form.get('actual_address')
-        phone = request.form.get('phone')
-        email = request.form.get('email')
-        director = request.form.get('director')
+        unp = request.form.get('unp', '').strip()
+        short_name = request.form.get('short_name', '').strip()
+        legal_address = request.form.get('legal_address', '')
+        actual_address = request.form.get('actual_address', '')
+        phone = request.form.get('phone', '')
+        email = request.form.get('email', '')
+        director = request.form.get('director', '')
         
         # Проверка обязательных полей
         if not unp or not short_name:
@@ -888,8 +889,8 @@ def create_organization_route():
         if len(unp) != 9 or not unp.isdigit():
             return jsonify({'success': False, 'error': 'УНП должен содержать 9 цифр'})
 
-        # Создаем организацию
-        org_id = create_organization(
+        # Создаем организацию через обновленную функцию
+        result = create_organization(
             unp=unp,
             short_name=short_name,
             legal_address=legal_address,
@@ -900,14 +901,14 @@ def create_organization_route():
             created_by=current_user.id
         )
         
-        if org_id:
+        if result['success']:
             return jsonify({'success': True})
         else:
-            return jsonify({'success': False, 'error': 'Организация с таким УНП уже существует'})
+            return jsonify({'success': False, 'error': result['error']})
             
     except Exception as e:
-        print(f"❌ Error creating organization: {e}")
-        return jsonify({'success': False, 'error': 'Ошибка сервера'})
+        logger.error(f"Error creating organization: {e}")
+        return jsonify({'success': False, 'error': 'Ошибка сервера при создании организации'})
 
 @app.route('/edit_organization_full/<int:org_id>', methods=['POST'])
 @login_required

@@ -171,40 +171,37 @@ def create_organization(unp, short_name, legal_address, actual_address, phone, e
     """Создать новую организацию"""
     try:
         print(f"🛢️  DATABASE: Creating organization with UNP: {unp}")
-        print(f"🛢️  DATABASE: Short name: {short_name}")
         
         with db_connection() as db:
             # Проверяем существование организации
             existing = db.execute(
-                'SELECT id, short_name FROM organizations WHERE unp = ?', (unp,)
+                'SELECT id FROM organizations WHERE unp = ?', (unp.strip(),)
             ).fetchone()
             
             if existing:
-                print(f"🛢️  DATABASE: Organization with UNP {unp} already exists (ID: {existing['id']}, Name: {existing['short_name']})")
-                return None
+                print(f"🛢️  DATABASE: Organization with UNP {unp} already exists")
+                return {'success': False, 'error': f'Организация с УНП {unp} уже существует'}
             
             print(f"🛢️  DATABASE: UNP {unp} is available, creating organization...")
             
-            # Пробуем вставить новую организацию
+            # Создаем организацию
             cursor = db.execute(
                 '''INSERT INTO organizations 
                 (unp, short_name, legal_address, actual_address, phone, email, director, created_by)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-                (unp, short_name, legal_address, actual_address, phone, email, director, created_by)
+                (unp.strip(), short_name.strip(), legal_address, actual_address, phone, email, director, created_by)
             )
             org_id = cursor.lastrowid
             print(f"🛢️  DATABASE: Organization created with ID: {org_id}")
-            return org_id
+            return {'success': True, 'id': org_id}
             
     except sqlite3.IntegrityError as e:
-        print(f"🛢️  DATABASE: Integrity error (UNIQUE constraint failed): {e}")
-        print(f"🛢️  DATABASE: This means UNP {unp} already exists in database")
-        return None
+        print(f"🛢️  DATABASE: Integrity error: {e}")
+        return {'success': False, 'error': f'Организация с УНП {unp} уже существует (ошибка уникальности)'}
     except Exception as e:
-        print(f"🛢️  DATABASE: Unexpected error creating organization: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
+        print(f"🛢️  DATABASE: Error creating organization: {e}")
+        logger.error(f"Ошибка при создании организации: {e}")
+        return {'success': False, 'error': 'Не удалось создать организацию'}
 
 def get_organization_by_unp(unp):
     """Получить организацию по УНП"""
